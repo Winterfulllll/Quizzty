@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PARTICIPANT
+  ORGANIZER
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+}
+
+enum QuizSessionStatus {
+  LOBBY
+  IN_PROGRESS
+  SHOWING_RESULTS
+  FINISHED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      UserRole @default(PARTICIPANT)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  quizzes        Quiz[]
+  sessions       QuizSessionParticipant[]
+
+  @@map("users")
+}
+
+model Quiz {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy  User           @relation(fields: [createdById], references: [id])
+  questions  QuizQuestion[]
+  sessions   QuizSession[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id               String       @id @default(uuid())
+  quizId           String       @map("quiz_id")
+  text             String
+  imageUrl         String?      @map("image_url")
+  type             QuestionType @default(SINGLE_CHOICE)
+  timeLimitSeconds Int          @default(30) @map("time_limit_seconds")
+  points           Int          @default(100)
+  order            Int
+
+  quiz    Quiz                @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options QuizQuestionOption[]
+  answers ParticipantAnswer[]
+
+  @@map("quiz_questions")
+}
+
+model QuizQuestionOption {
+  id         String  @id @default(uuid())
+  questionId String  @map("question_id")
+  text       String
+  isCorrect  Boolean @default(false) @map("is_correct")
+  order      Int
+
+  question QuizQuestion        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers  ParticipantAnswer[] @relation("SelectedOptions")
+
+  @@map("quiz_question_options")
+}
+
+model QuizSession {
+  id                   String            @id @default(uuid())
+  quizId               String            @map("quiz_id")
+  roomCode             String            @unique @map("room_code")
+  status               QuizSessionStatus @default(LOBBY)
+  currentQuestionIndex Int               @default(0) @map("current_question_index")
+  startedAt            DateTime?         @map("started_at")
+  finishedAt           DateTime?         @map("finished_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  quiz         Quiz                      @relation(fields: [quizId], references: [id])
+  participants QuizSessionParticipant[]
+
+  @@map("quiz_sessions")
+}
+
+model QuizSessionParticipant {
+  id        String @id @default(uuid())
+  sessionId String @map("session_id")
+  userId    String @map("user_id")
+  score     Int    @default(0)
+
+  session QuizSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User                @relation(fields: [userId], references: [id])
+  answers ParticipantAnswer[]
+
+  @@unique([sessionId, userId])
+  @@map("quiz_session_participants")
+}
+
+model ParticipantAnswer {
+  id            String   @id @default(uuid())
+  participantId String   @map("participant_id")
+  questionId    String   @map("question_id")
+  isCorrect     Boolean  @map("is_correct")
+  points        Int      @default(0)
+  answeredAt    DateTime @default(now()) @map("answered_at")
+
+  participant     QuizSessionParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  question        QuizQuestion          @relation(fields: [questionId], references: [id])
+  selectedOptions QuizQuestionOption[]   @relation("SelectedOptions")
+
+  @@unique([participantId, questionId])
+  @@map("participant_answers")
+}
