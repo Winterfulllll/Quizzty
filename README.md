@@ -53,3 +53,4 @@ bun run dev
 
 - Фронтенд: http://localhost:3000
 - API: http://localhost:4000/api
+- Swagger: http://localhost:4000/api/docs
