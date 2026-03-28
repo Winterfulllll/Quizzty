@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import type { Server } from 'node:http';
 import { AppModule } from './app.module.js';
 import { RedisIoAdapter } from './redis/redis-io.adapter.js';
 
@@ -18,7 +19,7 @@ async function bootstrap() {
   });
 
   const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
-  const redisAdapter = new RedisIoAdapter(app, redisUrl);
+  const redisAdapter = new RedisIoAdapter(app.getHttpServer() as Server, redisUrl);
   await redisAdapter.connectToRedis();
   app.useWebSocketAdapter(redisAdapter);
 
