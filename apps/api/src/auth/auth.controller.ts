@@ -90,7 +90,7 @@ export class AuthController {
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       secure: this.isProduction,
-      sameSite: 'lax',
+      sameSite: this.isProduction ? 'none' : 'lax',
       path: '/api/auth',
       maxAge: REFRESH_MAX_AGE,
     });
@@ -100,7 +100,7 @@ export class AuthController {
     res.clearCookie(REFRESH_COOKIE, {
       httpOnly: true,
       secure: this.isProduction,
-      sameSite: 'lax',
+      sameSite: this.isProduction ? 'none' : 'lax',
       path: '/api/auth',
     });
   }

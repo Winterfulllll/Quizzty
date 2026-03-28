@@ -10,7 +10,10 @@ import type { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({
   namespace: '/quiz',
-  cors: { origin: '*', credentials: true },
+  cors: {
+    origin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3000',
+    credentials: true,
+  },
 })
 export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(QuizGateway.name);
