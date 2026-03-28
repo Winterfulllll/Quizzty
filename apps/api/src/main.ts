@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
+import { RedisIoAdapter } from './redis/redis-io.adapter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,6 +16,11 @@ async function bootstrap() {
     origin: config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000',
     credentials: true,
   });
+
+  const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
+  const redisAdapter = new RedisIoAdapter(app, redisUrl);
+  await redisAdapter.connectToRedis();
+  app.useWebSocketAdapter(redisAdapter);
 
   app.setGlobalPrefix('api');
 
