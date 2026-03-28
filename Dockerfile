@@ -19,12 +19,20 @@ WORKDIR /app
 COPY --from=builder /app/apps/api/package.json ./
 RUN bun install --production
 
+FROM node:22-alpine AS prisma-cli
+WORKDIR /tmp/prisma
+RUN npm init -y && npm install prisma@7.6.0
+
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prisma-cli /tmp/prisma/node_modules/prisma ./node_modules/prisma
+COPY --from=prisma-cli /tmp/prisma/node_modules/@prisma/engines ./node_modules/@prisma/engines
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/generated ./generated
 COPY --from=builder /app/apps/api/package.json ./
+COPY --from=builder /app/apps/api/prisma ./prisma
+COPY --from=builder /app/apps/api/prisma.config.ts ./
 EXPOSE 4000
-CMD ["node", "dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
