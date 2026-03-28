@@ -10,4 +10,5 @@ coverage
 *.md
 .env*
 apps/web
+!apps/web/package.json
 apps/api/generated
