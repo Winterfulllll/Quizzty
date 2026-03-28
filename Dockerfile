@@ -14,10 +14,15 @@ WORKDIR /app/apps/api
 RUN bunx prisma generate
 RUN bun run build
 
+FROM oven/bun:1.3.2-alpine AS prod-deps
+WORKDIR /app
+COPY --from=builder /app/apps/api/package.json ./
+RUN bun install --production
+
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/generated ./generated
 COPY --from=builder /app/apps/api/package.json ./
