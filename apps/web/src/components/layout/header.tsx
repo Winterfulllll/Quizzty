@@ -64,6 +64,7 @@ export function Header() {
                 <DropdownMenuContent align="end" className="w-48">
                   <div className="px-2 py-1.5">
                     <p className="text-sm font-medium">{user.username}</p>
+
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
 
@@ -108,7 +109,7 @@ export function Header() {
               Отмена
             </AlertDialogClose>
 
-            <Button variant="destructive" size="sm" onClick={handleLogout}>
+            <Button variant="destructive" size="sm" onClick={() => void handleLogout()}>
               Выйти
             </Button>
           </AlertDialogFooter>

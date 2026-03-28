@@ -21,16 +21,19 @@ export class AuthService {
     const user = await this.usersService.create(dto);
     const accessToken = this.generateAccessToken(user);
     const refreshToken = await this.createRefreshToken(user.id);
+
     return { user, accessToken, refreshToken };
   }
 
   async login(email: string, password: string) {
     const user = await this.usersService.findByEmail(email);
+
     if (!user) {
       throw new UnauthorizedException('Неверный email или пароль');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
+
     if (!isPasswordValid) {
       throw new UnauthorizedException('Неверный email или пароль');
     }
@@ -38,6 +41,7 @@ export class AuthService {
     const { password: _, ...userWithoutPassword } = user;
     const accessToken = this.generateAccessToken(userWithoutPassword);
     const refreshToken = await this.createRefreshToken(user.id);
+
     return { user: userWithoutPassword, accessToken, refreshToken };
   }
 
@@ -65,6 +69,7 @@ export class AuthService {
       if (stored) {
         await this.prisma.refreshToken.deleteMany({ where: { userId: stored.userId } });
       }
+
       throw new UnauthorizedException('Refresh token невалиден или истёк');
     }
 
@@ -72,11 +77,13 @@ export class AuthService {
 
     const accessToken = this.generateAccessToken(stored.user);
     const refreshToken = await this.createRefreshToken(stored.userId);
+
     return { user: stored.user, accessToken, refreshToken };
   }
 
   async logout(token: string) {
     const tokenHash = this.hashToken(token);
+
     await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
   }
 
@@ -90,6 +97,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
     };
+
     return this.jwtService.sign(payload);
   }
 
@@ -98,6 +106,7 @@ export class AuthService {
     const tokenHash = this.hashToken(token);
 
     const expiresAt = new Date();
+
     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
 
     await this.prisma.refreshToken.create({

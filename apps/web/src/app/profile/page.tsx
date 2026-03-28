@@ -73,7 +73,9 @@ export default function ProfilePage() {
     if (errors[field]) {
       setErrors((prev) => {
         const next = { ...prev };
+
         delete next[field];
+
         return next;
       });
     }
@@ -87,7 +89,10 @@ export default function ProfilePage() {
 
       for (const issue of result.error.issues) {
         const key = issue.path[0];
-        if (typeof key === 'string') fieldErrors[key] = issue.message;
+
+        if (typeof key === 'string') {
+          fieldErrors[key] = issue.message;
+        }
       }
 
       setErrors(fieldErrors);
@@ -199,7 +204,7 @@ export default function ProfilePage() {
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="hidden"
-              onChange={handleAvatarUpload}
+              onChange={(e) => void handleAvatarUpload(e)}
             />
           </div>
 
@@ -297,7 +302,7 @@ export default function ProfilePage() {
               Удалить аккаунт
             </Button>
 
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button onClick={() => void handleSave()} disabled={isSaving}>
               {isSaving ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : (
@@ -325,7 +330,7 @@ export default function ProfilePage() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={handleDeleteAccount}
+              onClick={() => void handleDeleteAccount()}
               disabled={isDeleting}
             >
               {isDeleting && <Loader2 className="mr-2 size-4 animate-spin" />}

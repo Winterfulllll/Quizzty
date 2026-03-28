@@ -67,8 +67,14 @@ export class UsersService {
   ) {
     if (data.username || data.email) {
       const conditions = [];
-      if (data.username) conditions.push({ username: data.username });
-      if (data.email) conditions.push({ email: data.email });
+
+      if (data.username) {
+        conditions.push({ username: data.username });
+      }
+
+      if (data.email) {
+        conditions.push({ email: data.email });
+      }
 
       const existing = await this.prisma.user.findFirst({
         where: {

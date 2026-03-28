@@ -1,8 +1,20 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, Trophy, Clock, Zap, Plus, LogIn as LogInIcon } from 'lucide-react';
+import {
+  Users,
+  Trophy,
+  Clock,
+  Zap,
+  Plus,
+  LogIn as LogInIcon,
+  FileText,
+  Pencil,
+  Loader2,
+} from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { api, type QuizListItem } from '@/lib/api';
 
 const features = [
   {
@@ -79,6 +91,16 @@ function Landing() {
 
 function Dashboard() {
   const { user } = useAuth();
+  const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+
+  useEffect(() => {
+    api
+      .getQuizzes()
+      .then(setQuizzes)
+      .catch(() => {})
+      .finally(() => setLoadingQuizzes(false));
+  }, []);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-12">
@@ -121,8 +143,72 @@ function Dashboard() {
           </p>
         </Link>
       </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Мои квизы</h2>
+
+        {loadingQuizzes ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : quizzes.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            У вас пока нет квизов. Создайте первый!
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-2">
+            {quizzes.map((quiz) => (
+              <Link
+                key={quiz.id}
+                href={`/quiz/${quiz.id}/edit`}
+                className="group flex items-center justify-between rounded-lg border border-border/50 bg-card px-4 py-3 shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="size-4 text-muted-foreground" />
+
+                  <div>
+                    <p className="font-medium">{quiz.title}</p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {quiz._count.questions} {pluralQuestions(quiz._count.questions)}
+                      {quiz._count.sessions > 0 &&
+                        ` · ${quiz._count.sessions} ${pluralSessions(quiz._count.sessions)}`}
+                    </p>
+                  </div>
+                </div>
+
+                <Pencil className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function pluralQuestions(n: number): string {
+  if (n % 10 === 1 && n % 100 !== 11) {
+    return 'вопрос';
+  }
+
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
+    return 'вопроса';
+  }
+
+  return 'вопросов';
+}
+
+function pluralSessions(n: number): string {
+  if (n % 10 === 1 && n % 100 !== 11) {
+    return 'сессия';
+  }
+
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
+    return 'сессии';
+  }
+
+  return 'сессий';
 }
 
 export default function Home() {

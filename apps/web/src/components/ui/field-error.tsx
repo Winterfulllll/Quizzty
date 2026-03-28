@@ -6,7 +6,9 @@ interface FieldErrorProps {
 }
 
 export function FieldError({ message, className }: FieldErrorProps) {
-  if (!message) return null;
+  if (!message) {
+    return null;
+  }
 
   return (
     <p className={cn('text-[13px] text-destructive', className)} role="alert">

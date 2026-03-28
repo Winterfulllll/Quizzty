@@ -17,6 +17,7 @@ async function bootstrap() {
     /\/+$/,
     '',
   );
+
   app.enableCors({
     origin: corsOrigin,
     credentials: true,
@@ -24,6 +25,7 @@ async function bootstrap() {
 
   const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
   const redisAdapter = new RedisIoAdapter(app.getHttpServer() as Server, redisUrl);
+
   await redisAdapter.connectToRedis();
   app.useWebSocketAdapter(redisAdapter);
 
@@ -45,9 +47,11 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
+
   SwaggerModule.setup('api/docs', app, document);
 
   const port = config.get<number>('PORT') ?? 4000;
+
   await app.listen(port, '0.0.0.0');
   console.log(`API running on http://localhost:${String(port)}`);
   console.log(`Swagger: http://localhost:${String(port)}/api/docs`);

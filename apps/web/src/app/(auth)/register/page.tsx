@@ -26,12 +26,18 @@ export default function RegisterPage() {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
     const data = validateAll();
-    if (!data) return;
+
+    if (!data) {
+      return;
+    }
 
     setIsLoading(true);
+
     try {
       const res = await api.register(data);
+
       await onLogin(res.accessToken);
       toast.success('Аккаунт создан!');
       router.push('/');
@@ -46,14 +52,17 @@ export default function RegisterPage() {
     <Card className="border-border/50 shadow-sm">
       <CardHeader className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1 pb-4">
         <h1 className="text-xl font-bold">Создать аккаунт</h1>
+
         <Logo className="row-span-2 h-8 self-start text-primary" />
+
         <p className="text-sm text-muted-foreground">Зарегистрируйтесь, чтобы начать</p>
       </CardHeader>
 
-      <form ref={formRef} onSubmit={onSubmit} noValidate>
+      <form ref={formRef} onSubmit={(e) => void onSubmit(e)} noValidate>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">Имя пользователя</Label>
+
             <Input
               id="username"
               name="username"
@@ -62,11 +71,13 @@ export default function RegisterPage() {
               onBlur={() => onBlur('username')}
               onChange={() => onChange('username')}
             />
+
             <FieldError message={errors.username} />
           </div>
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="email">Email</Label>
+
             <Input
               id="email"
               name="email"
@@ -76,11 +87,13 @@ export default function RegisterPage() {
               onBlur={() => onBlur('email')}
               onChange={() => onChange('email')}
             />
+
             <FieldError message={errors.email} />
           </div>
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="password">Пароль</Label>
+
             <Input
               id="password"
               name="password"
@@ -90,6 +103,7 @@ export default function RegisterPage() {
               onBlur={() => onBlur('password')}
               onChange={() => onChange('password')}
             />
+
             <FieldError message={errors.password} />
           </div>
 

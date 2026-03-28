@@ -18,9 +18,9 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  onLogin: (accessToken: string) => void;
+  onLogin: (accessToken: string) => Promise<void>;
   refreshUser: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (token) {
         const me = await api.me();
+
         setUser(me);
       }
     } catch {
@@ -45,13 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    bootstrap();
+    void bootstrap();
   }, [bootstrap]);
 
   const onLogin = useCallback(async (accessToken: string) => {
     setAccessToken(accessToken);
+
     try {
       const me = await api.me();
+
       setUser(me);
     } catch {
       setUser(null);
@@ -61,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const me = await api.me();
+
       setUser(me);
     } catch {
       /* ignore */

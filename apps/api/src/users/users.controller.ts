@@ -77,6 +77,7 @@ export class UsersController {
 
     const base64 = file.buffer.toString('base64');
     const avatar = `data:${file.mimetype};base64,${base64}`;
+
     return this.usersService.updateProfile(req.user.id, { avatar });
   }
 
@@ -89,6 +90,7 @@ export class UsersController {
     @Req() req: Request & { user: { id: string } },
   ): Promise<{ message: string }> {
     await this.usersService.deleteAccount(req.user.id);
+
     return { message: 'Аккаунт удалён' };
   }
 }

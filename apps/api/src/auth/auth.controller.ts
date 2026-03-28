@@ -39,7 +39,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Регистрация нового пользователя' })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const { refreshToken, ...data } = await this.authService.register(dto);
+
     this.setRefreshCookie(res, refreshToken);
+
     return data;
   }
 
@@ -48,7 +50,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Вход в систему' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const { refreshToken, ...data } = await this.authService.login(dto.email, dto.password);
+
     this.setRefreshCookie(res, refreshToken);
+
     return data;
   }
 
@@ -57,12 +61,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Обновить access token' })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+
     if (!token) {
       throw new UnauthorizedException('Refresh token отсутствует');
     }
 
     const { refreshToken, ...data } = await this.authService.refresh(token);
+
     this.setRefreshCookie(res, refreshToken);
+
     return data;
   }
 
@@ -71,10 +78,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Выход из системы' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+
     if (token) {
       await this.authService.logout(token);
     }
+
     this.clearRefreshCookie(res);
+
     return { message: 'OK' };
   }
 

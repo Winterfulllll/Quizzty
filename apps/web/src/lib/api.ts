@@ -1,5 +1,60 @@
 import type { User } from './auth';
 
+export interface QuizOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+  order: number;
+}
+
+export interface QuizQuestion {
+  id: string;
+  text: string;
+  imageUrl: string | null;
+  type: 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE';
+  timeLimitSeconds: number;
+  points: number;
+  order: number;
+  options: QuizOption[];
+}
+
+export interface Quiz {
+  id: string;
+  title: string;
+  description: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  questions: QuizQuestion[];
+}
+
+export interface QuizListItem {
+  id: string;
+  title: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count: { questions: number; sessions: number };
+}
+
+export interface CreateQuestionData {
+  text: string;
+  imageUrl?: string;
+  type: 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE';
+  timeLimitSeconds: number;
+  points: number;
+  options: { text: string; isCorrect: boolean }[];
+}
+
+export interface UpdateQuestionData {
+  text?: string;
+  imageUrl?: string | null;
+  type?: 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE';
+  timeLimitSeconds?: number;
+  points?: number;
+  options?: { text: string; isCorrect: boolean }[];
+}
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(
   /\/+$/,
   '',
@@ -34,14 +89,18 @@ async function refreshAccessToken(): Promise<string | null> {
 
     if (!res.ok) {
       accessToken = null;
+
       return null;
     }
 
-    const data: { accessToken: string } = await res.json();
+    const data = (await res.json()) as { accessToken: string };
+
     accessToken = data.accessToken;
+
     return accessToken;
   } catch {
     accessToken = null;
+
     return null;
   }
 }
@@ -52,6 +111,7 @@ function getRefreshPromise(): Promise<string | null> {
       refreshPromise = null;
     });
   }
+
   return refreshPromise;
 }
 
@@ -68,6 +128,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (res.status === 401 && accessToken) {
     const newToken = await getRefreshPromise();
+
     if (newToken) {
       const retry = await fetch(`${API_URL}${path}`, {
         ...options,
@@ -80,22 +141,24 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       });
 
       if (!retry.ok) {
-        const body = await retry.json().catch(() => ({}));
+        const body = (await retry.json().catch(() => ({}))) as { message?: string };
+
         throw new ApiError(body.message ?? 'Произошла ошибка', retry.status);
       }
 
-      return retry.json();
+      return (await retry.json()) as T;
     }
 
     throw new ApiError('Сессия истекла', 401);
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+
     throw new ApiError(body.message ?? 'Произошла ошибка', res.status);
   }
 
-  return res.json();
+  return (await res.json()) as T;
 }
 
 async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
@@ -110,6 +173,7 @@ async function requestMultipart<T>(path: string, formData: FormData): Promise<T>
 
   if (res.status === 401 && accessToken) {
     const newToken = await getRefreshPromise();
+
     if (newToken) {
       const retry = await fetch(`${API_URL}${path}`, {
         method: 'POST',
@@ -119,22 +183,24 @@ async function requestMultipart<T>(path: string, formData: FormData): Promise<T>
       });
 
       if (!retry.ok) {
-        const body = await retry.json().catch(() => ({}));
+        const body = (await retry.json().catch(() => ({}))) as { message?: string };
+
         throw new ApiError(body.message ?? 'Произошла ошибка', retry.status);
       }
 
-      return retry.json();
+      return (await retry.json()) as T;
     }
 
     throw new ApiError('Сессия истекла', 401);
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+
     throw new ApiError(body.message ?? 'Произошла ошибка', res.status);
   }
 
-  return res.json();
+  return (await res.json()) as T;
 }
 
 interface AuthResponse {
@@ -186,12 +252,64 @@ export const api = {
 
   uploadAvatar(file: File) {
     const formData = new FormData();
+
     formData.append('avatar', file);
+
     return requestMultipart<User>('/users/profile/avatar', formData);
   },
 
   deleteAccount() {
     return request<{ message: string }>('/users/profile', {
+      method: 'DELETE',
+    });
+  },
+
+  // Quizzes
+  getQuizzes() {
+    return request<QuizListItem[]>('/quizzes');
+  },
+
+  getQuiz(id: string) {
+    return request<Quiz>(`/quizzes/${id}`);
+  },
+
+  createQuiz(data: { title: string; description?: string }) {
+    return request<Quiz>('/quizzes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateQuiz(id: string, data: { title?: string; description?: string }) {
+    return request<Quiz>(`/quizzes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteQuiz(id: string) {
+    return request<{ message: string }>(`/quizzes/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Questions
+  addQuestion(quizId: string, data: CreateQuestionData) {
+    return request<QuizQuestion>(`/quizzes/${quizId}/questions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateQuestion(quizId: string, questionId: string, data: UpdateQuestionData) {
+    return request<QuizQuestion>(`/quizzes/${quizId}/questions/${questionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteQuestion(quizId: string, questionId: string) {
+    return request<{ message: string }>(`/quizzes/${quizId}/questions/${questionId}`, {
       method: 'DELETE',
     });
   },
