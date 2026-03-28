@@ -1,4 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+import type { User } from './auth';
+
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace(
+  /\/+$/,
+  '',
+);
 
 class ApiError extends Error {
   constructor(
@@ -93,14 +98,47 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (res.status === 401 && accessToken) {
+    const newToken = await getRefreshPromise();
+    if (newToken) {
+      const retry = await fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${newToken}` },
+        body: formData,
+      });
+
+      if (!retry.ok) {
+        const body = await retry.json().catch(() => ({}));
+        throw new ApiError(body.message ?? 'Произошла ошибка', retry.status);
+      }
+
+      return retry.json();
+    }
+
+    throw new ApiError('Сессия истекла', 401);
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(body.message ?? 'Произошла ошибка', res.status);
+  }
+
+  return res.json();
+}
+
 interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    username: string;
-    role: string;
-    createdAt: string;
-  };
+  user: User;
   accessToken: string;
 }
 
@@ -132,6 +170,29 @@ export const api = {
   },
 
   me() {
-    return request<AuthResponse['user']>('/auth/me');
+    return request<User>('/auth/me');
+  },
+
+  getProfile() {
+    return request<User>('/users/profile');
+  },
+
+  updateProfile(data: { username?: string; email?: string; status?: string; bio?: string }) {
+    return request<User>('/users/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return requestMultipart<User>('/users/profile/avatar', formData);
+  },
+
+  deleteAccount() {
+    return request<{ message: string }>('/users/profile', {
+      method: 'DELETE',
+    });
   },
 };

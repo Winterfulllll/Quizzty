@@ -3,11 +3,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, setAccessToken } from './api';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   username: string;
   role: string;
+  avatar: string | null;
+  status: string | null;
+  bio: string | null;
+  createdAt: string;
 }
 
 interface AuthContextValue {
@@ -15,6 +19,7 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   onLogin: (accessToken: string) => void;
+  refreshUser: () => Promise<void>;
   logout: () => void;
 }
 
@@ -27,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrap = useCallback(async () => {
     try {
       const token = await api.refresh();
+
       if (token) {
         const me = await api.me();
         setUser(me);
@@ -52,6 +58,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await api.me();
+      setUser(me);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await api.logout();
     setUser(null);
@@ -63,9 +78,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isAuthenticated: !!user,
       onLogin,
+      refreshUser,
       logout,
     }),
-    [user, isLoading, onLogin, logout],
+    [user, isLoading, onLogin, refreshUser, logout],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
@@ -73,8 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
+
   if (!context) {
     throw new Error('useAuth must be used within AuthProvider');
   }
+
   return context;
 }

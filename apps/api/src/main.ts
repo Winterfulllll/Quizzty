@@ -3,9 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
-import type { Server } from 'node:http';
 import { AppModule } from './app.module.js';
 import { RedisIoAdapter } from './redis/redis-io.adapter.js';
+import { Server } from 'http';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,8 +13,12 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
+  const corsOrigin = (config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000').replace(
+    /\/+$/,
+    '',
+  );
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000',
+    origin: corsOrigin,
     credentials: true,
   });
 

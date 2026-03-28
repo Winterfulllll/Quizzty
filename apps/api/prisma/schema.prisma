@@ -30,6 +30,9 @@ model User {
   username  String   @unique
   password  String
   role      UserRole @default(PARTICIPANT)
+  avatar    String?  @db.Text
+  status    String?  @db.VarChar(128)
+  bio       String?  @db.VarChar(500)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -61,7 +64,7 @@ model Quiz {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  createdBy  User           @relation(fields: [createdById], references: [id])
+  createdBy  User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
   questions  QuizQuestion[]
   sessions   QuizSession[]
 
@@ -121,7 +124,7 @@ model QuizSessionParticipant {
   score     Int    @default(0)
 
   session QuizSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user    User                @relation(fields: [userId], references: [id])
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   answers ParticipantAnswer[]
 
   @@unique([sessionId, userId])

@@ -46,7 +46,19 @@ export class AuthService {
 
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
-      include: { user: { select: { id: true, email: true, username: true, role: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            role: true,
+            avatar: true,
+            status: true,
+            bio: true,
+          },
+        },
+      },
     });
 
     if (!stored || stored.expiresAt < new Date()) {

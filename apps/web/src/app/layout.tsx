@@ -38,6 +38,7 @@ export default function RootLayout({
           <AuthProvider>
             <div className="relative flex min-h-svh flex-col">
               <Header />
+
               <main className="flex-1">{children}</main>
             </div>
 
