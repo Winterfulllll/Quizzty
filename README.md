@@ -17,6 +17,7 @@
 - **База данных**: PostgreSQL, Redis
 - **Реалтайм**: Socket.IO + Redis Adapter
 - **Аутентификация**: JWT (access + refresh tokens, httpOnly cookies)
+- **Хранение изображений**: Cloudinary (аватары, вложения к вопросам)
 - **Инфраструктура**: Docker, Turborepo, Bun
 - **CI/CD**: GitHub Actions, Vercel (фронтенд), Railway (бэкенд + БД)
 

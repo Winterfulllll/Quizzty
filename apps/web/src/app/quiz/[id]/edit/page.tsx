@@ -13,14 +13,33 @@ import {
   Clock,
   Star,
   Settings2,
+  ImagePlus,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '@/lib/auth';
 import { api, type Quiz, type CreateQuestionData } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { FieldError } from '@/components/ui/field-error';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -38,17 +57,27 @@ interface OptionDraft {
 }
 
 interface QuestionDraft {
+  key: string;
   text: string;
   type: 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE';
   timeLimitSeconds: number;
   points: number;
   options: OptionDraft[];
+  imageUrl: string | null;
+  imageFile: File | null;
 }
 
 const EMPTY_OPTION: OptionDraft = { text: '', isCorrect: false };
 
+let nextKey = 0;
+
+function generateKey(): string {
+  return `q-${++nextKey}`;
+}
+
 function createEmptyQuestion(): QuestionDraft {
   return {
+    key: generateKey(),
     text: '',
     type: 'SINGLE_CHOICE',
     timeLimitSeconds: 30,
@@ -57,20 +86,57 @@ function createEmptyQuestion(): QuestionDraft {
       { text: '', isCorrect: true },
       { text: '', isCorrect: false },
     ],
+    imageUrl: null,
+    imageFile: null,
   };
 }
 
-function QuestionEditor({
+function validateQuestion(q: QuestionDraft): string | null {
+  if (!q.text.trim()) {
+    return 'Введите текст вопроса';
+  }
+
+  if (q.options.some((o) => !o.text.trim())) {
+    return 'Заполните все варианты ответа';
+  }
+
+  if (!q.options.some((o) => o.isCorrect)) {
+    return 'Отметьте правильный ответ';
+  }
+
+  const texts = q.options.map((o) => o.text.trim().toLowerCase());
+  const unique = new Set(texts);
+
+  if (unique.size !== texts.length) {
+    return 'Варианты ответа не должны повторяться';
+  }
+
+  return null;
+}
+
+function SortableQuestion({
   draft,
   index,
+  error,
   onChange,
   onDelete,
 }: {
   draft: QuestionDraft;
   index: number;
+  error: string | null;
   onChange: (draft: QuestionDraft) => void;
   onDelete: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: draft.key,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   function setField<K extends keyof QuestionDraft>(key: K, value: QuestionDraft[K]) {
     onChange({ ...draft, [key]: value });
   }
@@ -104,120 +170,177 @@ function QuestionEditor({
   }
 
   return (
-    <Card className="border-border/50 shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-        <div className="flex items-center gap-2">
-          <GripVertical className="size-4 text-muted-foreground" />
-
-          <span className="text-sm font-medium text-muted-foreground">Вопрос {index + 1}</span>
-        </div>
-
-        <Button variant="ghost" size="icon-xs" onClick={onDelete}>
-          <Trash2 className="size-3.5 text-destructive" />
-        </Button>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-4">
-        <Textarea
-          value={draft.text}
-          onChange={(e) => setField('text', e.target.value)}
-          placeholder="Текст вопроса..."
-          rows={2}
-          maxLength={1000}
-        />
-
-        <div className="flex flex-wrap gap-3">
+    <div ref={setNodeRef} style={style}>
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
           <div className="flex items-center gap-2">
-            <Settings2 className="size-3.5 text-muted-foreground" />
-
-            <select
-              value={draft.type}
-              onChange={(e) =>
-                setField('type', e.target.value as 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE')
-              }
-              className="h-7 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-ring dark:bg-input/30"
+            <button
+              type="button"
+              className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+              {...attributes}
+              {...listeners}
             >
-              <option value="SINGLE_CHOICE">Один ответ</option>
+              <GripVertical className="size-4" />
+            </button>
 
-              <option value="MULTIPLE_CHOICE">Несколько ответов</option>
-            </select>
+            <span className="text-sm font-medium text-muted-foreground">Вопрос {index + 1}</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Clock className="size-3.5 text-muted-foreground" />
+          <Button variant="ghost" size="icon-xs" onClick={onDelete}>
+            <Trash2 className="size-3.5 text-destructive" />
+          </Button>
+        </CardHeader>
 
-            <Input
-              type="number"
-              value={draft.timeLimitSeconds}
-              onChange={(e) => setField('timeLimitSeconds', Math.max(5, Number(e.target.value)))}
-              className="h-7 w-16 px-2 text-xs"
-              min={5}
-              max={300}
-            />
+        <CardContent className="flex flex-col gap-4">
+          <Textarea
+            value={draft.text}
+            onChange={(e) => setField('text', e.target.value)}
+            placeholder="Текст вопроса..."
+            rows={2}
+            maxLength={1000}
+          />
 
-            <span className="text-xs text-muted-foreground">сек</span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Star className="size-3.5 text-muted-foreground" />
-
-            <Input
-              type="number"
-              value={draft.points}
-              onChange={(e) => setField('points', Math.max(1, Number(e.target.value)))}
-              className="h-7 w-16 px-2 text-xs"
-              min={1}
-              max={10000}
-            />
-
-            <span className="text-xs text-muted-foreground">баллов</span>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs text-muted-foreground">Варианты ответа</Label>
-
-          {draft.options.map((opt, oi) => (
-            <div key={oi} className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => updateOption(oi, { isCorrect: !opt.isCorrect })}
-                className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                  opt.isCorrect
-                    ? 'border-green-500 bg-green-500 text-white'
-                    : 'border-border hover:border-green-300'
-                }`}
-              >
-                {opt.isCorrect && <Check className="size-3" />}
-              </button>
-
-              <Input
-                value={opt.text}
-                onChange={(e) => updateOption(oi, { text: e.target.value })}
-                placeholder={`Вариант ${oi + 1}`}
-                className="h-8 text-sm"
-                maxLength={500}
+          {draft.imageUrl || draft.imageFile ? (
+            <div className="relative inline-block self-start">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={
+                  draft.imageFile ? URL.createObjectURL(draft.imageFile) : (draft.imageUrl ?? '')
+                }
+                alt="Вложение"
+                className="max-h-48 rounded-lg border border-border object-contain"
               />
 
-              {draft.options.length > 2 && (
-                <Button variant="ghost" size="icon-xs" onClick={() => removeOption(oi)}>
-                  <Trash2 className="size-3 text-muted-foreground" />
-                </Button>
-              )}
+              <button
+                type="button"
+                onClick={() => onChange({ ...draft, imageUrl: null, imageFile: null })}
+                className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-destructive hover:text-white"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
-          ))}
+          ) : (
+            <label className="flex cursor-pointer items-center gap-2 self-start rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary">
+              <ImagePlus className="size-4" />
+              Добавить изображение
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
 
-          {draft.options.length < 8 && (
-            <Button variant="ghost" size="sm" onClick={addOption} className="self-start">
-              <Plus className="mr-1 size-3" />
-              Добавить вариант
-            </Button>
+                  if (file) {
+                    if (file.size > 2 * 1024 * 1024) {
+                      toast.error('Максимальный размер файла — 2 МБ');
+
+                      return;
+                    }
+
+                    onChange({ ...draft, imageFile: file, imageUrl: null });
+                  }
+
+                  e.target.value = '';
+                }}
+              />
+            </label>
           )}
-        </div>
-      </CardContent>
-    </Card>
+
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <Settings2 className="size-3.5 text-muted-foreground" />
+
+              <select
+                value={draft.type}
+                onChange={(e) =>
+                  setField('type', e.target.value as 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE')
+                }
+                className="h-7 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-ring dark:bg-input/30"
+              >
+                <option value="SINGLE_CHOICE">Один ответ</option>
+
+                <option value="MULTIPLE_CHOICE">Несколько ответов</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Clock className="size-3.5 text-muted-foreground" />
+
+              <Input
+                type="number"
+                value={draft.timeLimitSeconds}
+                onChange={(e) => setField('timeLimitSeconds', Math.max(5, Number(e.target.value)))}
+                className="h-7 w-16 px-2 text-xs"
+                min={5}
+                max={300}
+              />
+
+              <span className="text-xs text-muted-foreground">сек</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Star className="size-3.5 text-muted-foreground" />
+
+              <Input
+                type="number"
+                value={draft.points}
+                onChange={(e) => setField('points', Math.max(1, Number(e.target.value)))}
+                className="h-7 w-16 px-2 text-xs"
+                min={1}
+                max={10000}
+              />
+
+              <span className="text-xs text-muted-foreground">баллов</span>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs text-muted-foreground">Варианты ответа</Label>
+
+            {draft.options.map((opt, oi) => (
+              <div key={oi} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateOption(oi, { isCorrect: !opt.isCorrect })}
+                  className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    opt.isCorrect
+                      ? 'border-green-500 bg-green-500 text-white'
+                      : 'border-border hover:border-green-300'
+                  }`}
+                >
+                  {opt.isCorrect && <Check className="size-3" />}
+                </button>
+
+                <Input
+                  value={opt.text}
+                  onChange={(e) => updateOption(oi, { text: e.target.value })}
+                  placeholder={`Вариант ${oi + 1}`}
+                  className="h-8 text-sm"
+                  maxLength={500}
+                />
+
+                {draft.options.length > 2 && (
+                  <Button variant="ghost" size="icon-xs" onClick={() => removeOption(oi)}>
+                    <Trash2 className="size-3 text-muted-foreground" />
+                  </Button>
+                )}
+              </div>
+            ))}
+
+            {draft.options.length < 8 && (
+              <Button variant="ghost" size="sm" onClick={addOption} className="self-start">
+                <Plus className="mr-1 size-3" />
+                Добавить вариант
+              </Button>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -234,6 +357,12 @@ export default function EditQuizPage() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [titleTouched, setTitleTouched] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const loadQuiz = useCallback(async () => {
     try {
@@ -244,11 +373,14 @@ export default function EditQuizPage() {
       setDescription(data.description ?? '');
       setQuestions(
         data.questions.map((q) => ({
+          key: generateKey(),
           text: q.text,
           type: q.type,
           timeLimitSeconds: q.timeLimitSeconds,
           points: q.points,
           options: q.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect })),
+          imageUrl: q.imageUrl,
+          imageFile: null,
         })),
       );
     } catch (err) {
@@ -275,52 +407,61 @@ export default function EditQuizPage() {
     return null;
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    setQuestions((prev) => {
+      const oldIndex = prev.findIndex((q) => q.key === active.id);
+      const newIndex = prev.findIndex((q) => q.key === over.id);
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return prev;
+      }
+
+      const next = [...prev];
+      const [moved] = next.splice(oldIndex, 1);
+
+      next.splice(newIndex, 0, moved);
+
+      return next;
+    });
+  }
+
   function addQuestion() {
     setQuestions((prev) => [...prev, createEmptyQuestion()]);
   }
 
-  function updateQuestion(index: number, draft: QuestionDraft) {
-    setQuestions((prev) => prev.map((q, i) => (i === index ? draft : q)));
+  function updateQuestion(key: string, draft: QuestionDraft) {
+    setQuestions((prev) => prev.map((q) => (q.key === key ? draft : q)));
   }
 
-  function deleteQuestion(index: number) {
-    setQuestions((prev) => prev.filter((_, i) => i !== index));
+  function deleteQuestion(key: string) {
+    setQuestions((prev) => prev.filter((q) => q.key !== key));
   }
 
-  function validate(): string | null {
-    if (!title.trim()) {
-      return 'Введите название квиза';
+  const questionErrors = new Map<string, string>();
+
+  for (const q of questions) {
+    const err = validateQuestion(q);
+
+    if (err) {
+      questionErrors.set(q.key, err);
     }
-
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-
-      if (!q.text.trim()) {
-        return `Вопрос ${i + 1}: введите текст вопроса`;
-      }
-
-      if (q.options.some((o) => !o.text.trim())) {
-        return `Вопрос ${i + 1}: заполните все варианты ответа`;
-      }
-
-      if (!q.options.some((o) => o.isCorrect)) {
-        return `Вопрос ${i + 1}: отметьте правильный ответ`;
-      }
-    }
-
-    return null;
   }
+
+  const titleMissing = !title.trim();
+  const hasErrors = titleMissing || questionErrors.size > 0;
 
   async function handleSave() {
     if (!quiz) {
       return;
     }
 
-    const error = validate();
-
-    if (error) {
-      toast.error(error);
-
+    if (hasErrors) {
       return;
     }
 
@@ -345,9 +486,14 @@ export default function EditQuizPage() {
           timeLimitSeconds: q.timeLimitSeconds,
           points: q.points,
           options: q.options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })),
+          imageUrl: q.imageUrl ?? undefined,
         };
 
-        await api.addQuestion(id, data);
+        const created = await api.addQuestion(id, data);
+
+        if (q.imageFile) {
+          await api.uploadQuestionImage(id, created.id, q.imageFile);
+        }
       }
 
       await loadQuiz();
@@ -373,6 +519,8 @@ export default function EditQuizPage() {
     }
   }
 
+  const questionKeys = questions.map((q) => q.key);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-12">
       <div className="flex items-center gap-3">
@@ -396,9 +544,13 @@ export default function EditQuizPage() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => setTitleTouched(true)}
               placeholder="Название квиза"
               maxLength={200}
+              aria-invalid={titleTouched && titleMissing}
             />
+
+            {titleTouched && titleMissing && <FieldError message="Введите название квиза" />}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -439,15 +591,22 @@ export default function EditQuizPage() {
           </CardContent>
         </Card>
       ) : (
-        questions.map((q, i) => (
-          <QuestionEditor
-            key={i}
-            draft={q}
-            index={i}
-            onChange={(d) => updateQuestion(i, d)}
-            onDelete={() => deleteQuestion(i)}
-          />
-        ))
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={questionKeys} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-6">
+              {questions.map((q, i) => (
+                <SortableQuestion
+                  key={q.key}
+                  draft={q}
+                  index={i}
+                  error={questionErrors.get(q.key) ?? null}
+                  onChange={(d) => updateQuestion(q.key, d)}
+                  onDelete={() => deleteQuestion(q.key)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <div className="flex items-center justify-between">
@@ -456,7 +615,7 @@ export default function EditQuizPage() {
           Удалить квиз
         </Button>
 
-        <Button onClick={() => void handleSave()} disabled={saving}>
+        <Button onClick={() => void handleSave()} disabled={saving || hasErrors}>
           {saving ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
           ) : (

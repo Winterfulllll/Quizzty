@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { FieldError } from '@/components/ui/field-error';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 export default function CreateQuizPage() {
@@ -19,6 +20,7 @@ export default function CreateQuizPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [titleTouched, setTitleTouched] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -32,8 +34,6 @@ export default function CreateQuizPage() {
 
   async function handleCreate() {
     if (!title.trim()) {
-      toast.error('Введите название квиза');
-
       return;
     }
 
@@ -71,9 +71,13 @@ export default function CreateQuizPage() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => setTitleTouched(true)}
               placeholder="Например: География мира"
               maxLength={200}
+              aria-invalid={titleTouched && !title.trim()}
             />
+
+            {titleTouched && !title.trim() && <FieldError message="Введите название квиза" />}
           </div>
 
           <div className="flex flex-col gap-2">

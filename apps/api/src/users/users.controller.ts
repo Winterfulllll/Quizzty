@@ -20,13 +20,18 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
 import { UsersService } from './users.service.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
@@ -65,7 +70,7 @@ export class UsersController {
             fileType: /^image\/(jpeg|png|webp|gif)$/,
             fallbackToMimetype: true,
           }),
-          new MaxFileSizeValidator({ maxSize: 512 * 1024 }),
+          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
         ],
       }),
     )
@@ -75,10 +80,23 @@ export class UsersController {
       throw new BadRequestException('Файл не загружен');
     }
 
-    const base64 = file.buffer.toString('base64');
-    const avatar = `data:${file.mimetype};base64,${base64}`;
+    const { url } = await this.cloudinaryService.upload(file, 'quizzty/avatars');
 
-    return this.usersService.updateProfile(req.user.id, { avatar });
+    return this.usersService.updateProfile(req.user.id, { avatar: url });
+  }
+
+  @Post('profile/password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Сменить пароль' })
+  async changePassword(
+    @Req() req: Request & { user: { id: string } },
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    await this.usersService.changePassword(req.user.id, dto.currentPassword, dto.newPassword);
+
+    return { message: 'Пароль успешно изменён' };
   }
 
   @Delete('profile')

@@ -30,7 +30,7 @@ model User {
   username  String   @unique
   password  String
   role      UserRole @default(PARTICIPANT)
-  avatar    String?  @db.Text
+  avatar    String?
   status    String?  @db.VarChar(128)
   bio       String?  @db.VarChar(500)
   createdAt DateTime @default(now()) @map("created_at")

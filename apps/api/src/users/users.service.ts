@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UserRole } from '../../generated/prisma/client.js';
 import * as bcrypt from 'bcrypt';
@@ -94,6 +94,27 @@ export class UsersService {
       where: { id },
       data,
       select: USER_PUBLIC_SELECT,
+    });
+  }
+
+  async changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      throw new BadRequestException('Пользователь не найден');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isValid) {
+      throw new BadRequestException('Неверный текущий пароль');
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { password: hashed },
     });
   }
 

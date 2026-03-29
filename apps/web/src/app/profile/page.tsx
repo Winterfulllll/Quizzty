@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Loader2, Save, Trash2 } from 'lucide-react';
+import { Camera, Eye, EyeOff, KeyRound, Loader2, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -32,8 +32,23 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+
+  const [passwords, setPasswords] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+  const [passwordTouched, setPasswordTouched] = useState<Set<string>>(new Set());
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
 
   const [form, setForm] = useState({
     username: '',
@@ -41,6 +56,27 @@ export default function ProfilePage() {
     status: '',
     bio: '',
   });
+
+  const original = useMemo(
+    () => ({
+      username: user?.username ?? '',
+      email: user?.email ?? '',
+      status: user?.status ?? '',
+      bio: user?.bio ?? '',
+    }),
+    [user],
+  );
+
+  const hasChanges = useMemo(
+    () =>
+      form.username !== original.username ||
+      form.email !== original.email ||
+      form.status !== original.status ||
+      form.bio !== original.bio,
+    [form, original],
+  );
+
+  const isValid = useMemo(() => profileSchema.safeParse(form).success, [form]);
 
   const syncForm = useCallback(() => {
     if (user) {
@@ -50,6 +86,9 @@ export default function ProfilePage() {
         status: user.status ?? '',
         bio: user.bio ?? '',
       });
+
+      setErrors({});
+      setTouched(new Set());
     }
   }, [user]);
 
@@ -67,11 +106,35 @@ export default function ProfilePage() {
     return null;
   }
 
-  function handleChange(field: string, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  function validateField(field: string) {
+    const result = profileSchema.safeParse(form);
 
-    if (errors[field]) {
+    if (result.success) {
       setErrors((prev) => {
+        if (!prev[field]) {
+          return prev;
+        }
+
+        const next = { ...prev };
+
+        delete next[field];
+
+        return next;
+      });
+
+      return;
+    }
+
+    const issue = result.error.issues.find((i) => i.path[0] === field);
+
+    if (issue) {
+      setErrors((prev) => ({ ...prev, [field]: issue.message }));
+    } else {
+      setErrors((prev) => {
+        if (!prev[field]) {
+          return prev;
+        }
+
         const next = { ...prev };
 
         delete next[field];
@@ -79,6 +142,21 @@ export default function ProfilePage() {
         return next;
       });
     }
+  }
+
+  function handleChange(field: string, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+
+    if (touched.has(field)) {
+      setTimeout(() => {
+        validateField(field);
+      }, 0);
+    }
+  }
+
+  function handleBlur(field: string) {
+    setTouched((prev) => new Set(prev).add(field));
+    validateField(field);
   }
 
   async function handleSave() {
@@ -115,6 +193,7 @@ export default function ProfilePage() {
       toast.success('Профиль обновлён');
 
       setErrors({});
+      setTouched(new Set());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
@@ -166,6 +245,111 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : 'Ошибка удаления');
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  function validatePasswordField(field: string, values = passwords) {
+    const errs: Record<string, string> = {};
+
+    if (field === 'currentPassword' && !values.currentPassword) {
+      errs.currentPassword = 'Введите текущий пароль';
+    }
+
+    if (field === 'newPassword') {
+      if (!values.newPassword) {
+        errs.newPassword = 'Введите новый пароль';
+      } else if (values.newPassword.length < 6) {
+        errs.newPassword = 'Минимум 6 символов';
+      } else if (values.newPassword.length > 128) {
+        errs.newPassword = 'Максимум 128 символов';
+      }
+    }
+
+    if (field === 'confirmPassword') {
+      if (values.newPassword && !values.confirmPassword) {
+        errs.confirmPassword = 'Повторите новый пароль';
+      } else if (values.confirmPassword && values.confirmPassword !== values.newPassword) {
+        errs.confirmPassword = 'Пароли не совпадают';
+      }
+    }
+
+    setPasswordErrors((prev) => {
+      const next = { ...prev };
+
+      if (errs[field]) {
+        next[field] = errs[field];
+      } else {
+        delete next[field];
+      }
+
+      return next;
+    });
+  }
+
+  function handlePasswordChange(field: string, value: string) {
+    const updated = { ...passwords, [field]: value };
+
+    setPasswords(updated);
+
+    if (passwordTouched.has(field)) {
+      setTimeout(() => {
+        validatePasswordField(field, updated);
+      }, 0);
+    }
+
+    if (
+      field === 'newPassword' &&
+      passwordTouched.has('confirmPassword') &&
+      updated.confirmPassword
+    ) {
+      setTimeout(() => {
+        validatePasswordField('confirmPassword', updated);
+      }, 0);
+    }
+  }
+
+  function handlePasswordBlur(field: string) {
+    setPasswordTouched((prev) => new Set(prev).add(field));
+    validatePasswordField(field);
+  }
+
+  const showConfirmField = passwords.newPassword.length >= 6;
+
+  const isPasswordFormValid =
+    passwords.currentPassword.length > 0 &&
+    passwords.newPassword.length >= 6 &&
+    passwords.newPassword.length <= 128 &&
+    passwords.confirmPassword === passwords.newPassword &&
+    passwords.confirmPassword.length > 0;
+
+  const hasPasswordInput =
+    passwords.currentPassword.length > 0 ||
+    passwords.newPassword.length > 0 ||
+    passwords.confirmPassword.length > 0;
+
+  async function handleChangePassword() {
+    if (!isPasswordFormValid) {
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await api.changePassword({
+        currentPassword: passwords.currentPassword,
+        newPassword: passwords.newPassword,
+      });
+
+      toast.success('Пароль успешно изменён');
+
+      setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordErrors({});
+      setPasswordTouched(new Set());
+      setShowPasswords({ current: false, new: false, confirm: false });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка смены пароля');
+    } finally {
+      setIsChangingPassword(false);
     }
   }
 
@@ -233,6 +417,7 @@ export default function ProfilePage() {
               id="username"
               value={form.username}
               onChange={(e) => handleChange('username', e.target.value)}
+              onBlur={() => handleBlur('username')}
               aria-invalid={!!errors.username}
             />
 
@@ -247,6 +432,7 @@ export default function ProfilePage() {
               type="email"
               value={form.email}
               onChange={(e) => handleChange('email', e.target.value)}
+              onBlur={() => handleBlur('email')}
               aria-invalid={!!errors.email}
             />
 
@@ -262,6 +448,7 @@ export default function ProfilePage() {
               id="status"
               value={form.status}
               onChange={(e) => handleChange('status', e.target.value)}
+              onBlur={() => handleBlur('status')}
               placeholder="Например: Люблю квизы!"
               maxLength={128}
               aria-invalid={!!errors.status}
@@ -283,6 +470,7 @@ export default function ProfilePage() {
               id="bio"
               value={form.bio}
               onChange={(e) => handleChange('bio', e.target.value)}
+              onBlur={() => handleBlur('bio')}
               placeholder="Расскажите немного о себе..."
               maxLength={500}
               rows={4}
@@ -302,13 +490,125 @@ export default function ProfilePage() {
               Удалить аккаунт
             </Button>
 
-            <Button onClick={() => void handleSave()} disabled={isSaving}>
+            <Button
+              onClick={() => void handleSave()}
+              disabled={isSaving || !hasChanges || !isValid}
+            >
               {isSaving ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : (
                 <Save className="mr-2 size-4" />
               )}
               Сохранить
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-4">
+          <h2 className="text-lg font-semibold">Смена пароля</h2>
+        </CardHeader>
+
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="currentPassword">Текущий пароль</Label>
+
+            <div className="relative">
+              <Input
+                id="currentPassword"
+                type={showPasswords.current ? 'text' : 'password'}
+                value={passwords.currentPassword}
+                onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                onBlur={() => handlePasswordBlur('currentPassword')}
+                aria-invalid={!!passwordErrors.currentPassword}
+                className="pr-10"
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showPasswords.current ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+
+            <FieldError message={passwordErrors.currentPassword} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="newPassword">Новый пароль</Label>
+
+            <div className="relative">
+              <Input
+                id="newPassword"
+                type={showPasswords.new ? 'text' : 'password'}
+                value={passwords.newPassword}
+                onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                onBlur={() => handlePasswordBlur('newPassword')}
+                aria-invalid={!!passwordErrors.newPassword}
+                className="pr-10"
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showPasswords.new ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+
+            <FieldError message={passwordErrors.newPassword} />
+          </div>
+
+          {showConfirmField && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirmPassword">Повторите новый пароль</Label>
+
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showPasswords.confirm ? 'text' : 'password'}
+                  value={passwords.confirmPassword}
+                  onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                  onBlur={() => handlePasswordBlur('confirmPassword')}
+                  aria-invalid={!!passwordErrors.confirmPassword}
+                  className="pr-10"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPasswords.confirm ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+
+              <FieldError message={passwordErrors.confirmPassword} />
+            </div>
+          )}
+
+          <div className="mt-2 flex justify-end">
+            <Button
+              onClick={() => void handleChangePassword()}
+              disabled={isChangingPassword || !hasPasswordInput || !isPasswordFormValid}
+            >
+              {isChangingPassword ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <KeyRound className="mr-2 size-4" />
+              )}
+              Сменить пароль
             </Button>
           </div>
         </CardContent>

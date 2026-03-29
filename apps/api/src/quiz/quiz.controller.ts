@@ -10,10 +10,18 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  FileTypeValidator,
+  MaxFileSizeValidator,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
 import { QuizService } from './quiz.service.js';
 import { CreateQuizDto } from './dto/create-quiz.dto.js';
 import { UpdateQuizDto } from './dto/update-quiz.dto.js';
@@ -27,7 +35,10 @@ type AuthRequest = Request & { user: { id: string } };
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class QuizController {
-  constructor(private readonly quizService: QuizService) {}
+  constructor(
+    private readonly quizService: QuizService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Создать квиз' })
@@ -105,5 +116,56 @@ export class QuizController {
     @Body() body: { questionIds: string[] },
   ) {
     return this.quizService.reorderQuestions(quizId, req.user.id, body.questionIds);
+  }
+
+  @Post(':id/questions/:questionId/image')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiOperation({ summary: 'Загрузить изображение к вопросу' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { image: { type: 'string', format: 'binary' } },
+    },
+  })
+  async uploadQuestionImage(
+    @Req() req: AuthRequest,
+    @Param('id') quizId: string,
+    @Param('questionId') questionId: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new FileTypeValidator({
+            fileType: /^image\/(jpeg|png|webp|gif)$/,
+            fallbackToMimetype: true,
+          }),
+          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Файл не загружен');
+    }
+
+    const { url } = await this.cloudinaryService.upload(file, 'quizzty/questions');
+
+    return this.quizService.updateQuestion(quizId, questionId, req.user.id, {
+      imageUrl: url,
+    });
+  }
+
+  @Delete(':id/questions/:questionId/image')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Удалить изображение вопроса' })
+  async removeQuestionImage(
+    @Req() req: AuthRequest,
+    @Param('id') quizId: string,
+    @Param('questionId') questionId: string,
+  ) {
+    return this.quizService.updateQuestion(quizId, questionId, req.user.id, {
+      imageUrl: null,
+    });
   }
 }

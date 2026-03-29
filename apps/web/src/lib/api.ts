@@ -258,6 +258,13 @@ export const api = {
     return requestMultipart<User>('/users/profile/avatar', formData);
   },
 
+  changePassword(data: { currentPassword: string; newPassword: string }) {
+    return request<{ message: string }>('/users/profile/password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   deleteAccount() {
     return request<{ message: string }>('/users/profile', {
       method: 'DELETE',
@@ -310,6 +317,23 @@ export const api = {
 
   deleteQuestion(quizId: string, questionId: string) {
     return request<{ message: string }>(`/quizzes/${quizId}/questions/${questionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  uploadQuestionImage(quizId: string, questionId: string, file: File) {
+    const formData = new FormData();
+
+    formData.append('image', file);
+
+    return requestMultipart<QuizQuestion>(
+      `/quizzes/${quizId}/questions/${questionId}/image`,
+      formData,
+    );
+  },
+
+  deleteQuestionImage(quizId: string, questionId: string) {
+    return request<QuizQuestion>(`/quizzes/${quizId}/questions/${questionId}/image`, {
       method: 'DELETE',
     });
   },
