@@ -19,6 +19,15 @@ export class QuizService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateQuizDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (user?.role !== 'ORGANIZER') {
+      throw new ForbiddenException('Только организаторы могут создавать квизы');
+    }
+
     return this.prisma.quiz.create({
       data: {
         title: dto.title,
@@ -30,13 +39,33 @@ export class QuizService {
   }
 
   async findAllByUser(userId: string) {
-    return this.prisma.quiz.findMany({
+    const quizzes = await this.prisma.quiz.findMany({
       where: { createdById: userId },
       orderBy: { updatedAt: 'desc' },
       include: {
-        _count: { select: { questions: true, sessions: true } },
+        _count: { select: { questions: true } },
+        sessions: {
+          where: { status: { in: ['LOBBY', 'IN_PROGRESS'] } },
+          select: {
+            id: true,
+            roomCode: true,
+            status: true,
+            createdAt: true,
+            _count: { select: { participants: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
+
+    return quizzes.map((quiz) => ({
+      ...quiz,
+      _count: {
+        ...quiz._count,
+        sessions: quiz.sessions.length,
+      },
+      activeSessions: quiz.sessions,
+    }));
   }
 
   async findById(id: string, userId?: string) {

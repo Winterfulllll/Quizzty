@@ -5,6 +5,7 @@ import {
   Post,
   Delete,
   Body,
+  Param,
   Req,
   HttpCode,
   HttpStatus,
@@ -19,6 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { UserRole } from '../../generated/prisma/client.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
 import { UsersService } from './users.service.js';
@@ -32,6 +34,14 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
+
+  @Get(':id/public')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Публичный профиль пользователя' })
+  getPublicProfile(@Param('id') id: string) {
+    return this.usersService.getPublicProfile(id);
+  }
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
@@ -97,6 +107,19 @@ export class UsersController {
     await this.usersService.changePassword(req.user.id, dto.currentPassword, dto.newPassword);
 
     return { message: 'Пароль успешно изменён' };
+  }
+
+  @Post('profile/role')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Сменить роль' })
+  async changeRole(@Req() req: Request & { user: { id: string } }, @Body() body: { role: string }) {
+    if (body.role !== 'ORGANIZER' && body.role !== 'PARTICIPANT') {
+      throw new BadRequestException('Недопустимая роль');
+    }
+
+    return this.usersService.changeRole(req.user.id, body.role as UserRole);
   }
 
   @Delete('profile')

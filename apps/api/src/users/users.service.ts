@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UserRole } from '../../generated/prisma/client.js';
 import * as bcrypt from 'bcrypt';
@@ -115,6 +120,98 @@ export class UsersService {
     await this.prisma.user.update({
       where: { id },
       data: { password: hashed },
+    });
+  }
+
+  async getPublicProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        avatar: true,
+        status: true,
+        bio: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    const hostedSessions = await this.prisma.quizSession.findMany({
+      where: {
+        status: 'FINISHED',
+        quiz: { createdById: userId },
+      },
+      orderBy: { finishedAt: 'desc' },
+      select: {
+        id: true,
+        roomCode: true,
+        startedAt: true,
+        finishedAt: true,
+        quiz: { select: { id: true, title: true } },
+        _count: { select: { participants: true } },
+      },
+    });
+
+    const participantEntries = await this.prisma.quizSessionParticipant.findMany({
+      where: {
+        userId,
+        session: { status: 'FINISHED' },
+      },
+      orderBy: { session: { finishedAt: 'desc' } },
+      select: {
+        score: true,
+        session: {
+          select: {
+            id: true,
+            roomCode: true,
+            startedAt: true,
+            finishedAt: true,
+            quiz: { select: { id: true, title: true } },
+            _count: { select: { participants: true } },
+            participants: {
+              orderBy: { score: 'desc' },
+              select: { userId: true, score: true },
+            },
+          },
+        },
+      },
+    });
+
+    const participatedSessions = participantEntries.map((e) => {
+      const uniqueScores = [...new Set(e.session.participants.map((p) => p.score))].sort(
+        (a, b) => b - a,
+      );
+      const rank = uniqueScores.indexOf(e.score) + 1;
+
+      return {
+        sessionId: e.session.id,
+        roomCode: e.session.roomCode,
+        startedAt: e.session.startedAt,
+        finishedAt: e.session.finishedAt,
+        quiz: e.session.quiz,
+        participantCount: e.session._count.participants,
+        score: e.score,
+        rank,
+      };
+    });
+
+    return {
+      ...user,
+      hostedSessions,
+      participatedSessions,
+    };
+  }
+
+  async changeRole(id: string, role: UserRole) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { role },
+      select: USER_PUBLIC_SELECT,
     });
   }
 

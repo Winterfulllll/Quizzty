@@ -14,7 +14,7 @@ import { FieldError } from '@/components/ui/field-error';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 export default function CreateQuizPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [title, setTitle] = useState('');
@@ -25,8 +25,14 @@ export default function CreateQuizPage() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.replace('/login');
+
+      return;
     }
-  }, [authLoading, isAuthenticated, router]);
+
+    if (!authLoading && user?.role !== 'ORGANIZER') {
+      router.replace('/');
+    }
+  }, [authLoading, isAuthenticated, user, router]);
 
   if (authLoading || !isAuthenticated) {
     return null;

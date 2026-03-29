@@ -7,6 +7,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { QuizModule } from './quiz/quiz.module.js';
+import { SessionModule } from './session/session.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { QuizModule } from './quiz/quiz.module.js';
     AuthModule,
     UsersModule,
     QuizModule,
+    SessionModule,
   ],
   controllers: [AppController],
 })

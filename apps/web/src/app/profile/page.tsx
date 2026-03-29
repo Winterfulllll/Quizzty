@@ -2,10 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Eye, EyeOff, KeyRound, Loader2, Save, Trash2 } from 'lucide-react';
+import {
+  Camera,
+  Eye,
+  EyeOff,
+  History,
+  KeyRound,
+  Loader2,
+  Medal,
+  RefreshCw,
+  Save,
+  Trash2,
+  Trophy,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, type HostedSessionHistory, type ParticipatedSessionHistory } from '@/lib/api';
 import { profileSchema } from '@/lib/validations/profile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +37,25 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 
+function pluralPoints(n: number) {
+  const abs = Math.abs(n) % 100;
+  const last = abs % 10;
+
+  if (abs >= 11 && abs <= 19) {
+    return 'баллов';
+  }
+
+  if (last === 1) {
+    return 'балл';
+  }
+
+  if (last >= 2 && last <= 4) {
+    return 'балла';
+  }
+
+  return 'баллов';
+}
+
 export default function ProfilePage() {
   const { user, isAuthenticated, isLoading: authLoading, refreshUser, logout } = useAuth();
   const router = useRouter();
@@ -34,8 +66,17 @@ export default function ProfilePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [switchingRole, setSwitchingRole] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
+
+  const [hostedHistory, setHostedHistory] = useState<HostedSessionHistory[]>([]);
+  const [participatedHistory, setParticipatedHistory] = useState<ParticipatedSessionHistory[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [clearingHosted, setClearingHosted] = useState(false);
+  const [clearingParticipated, setClearingParticipated] = useState(false);
+  const [clearHostedOpen, setClearHostedOpen] = useState(false);
+  const [clearParticipatedOpen, setClearParticipatedOpen] = useState(false);
 
   const [passwords, setPasswords] = useState({
     currentPassword: '',
@@ -101,6 +142,22 @@ export default function ProfilePage() {
       router.replace('/login');
     }
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    setHistoryLoading(true);
+
+    Promise.all([api.getHostedHistory(), api.getParticipatedHistory()])
+      .then(([hosted, participated]) => {
+        setHostedHistory(hosted);
+        setParticipatedHistory(participated);
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }, [isAuthenticated]);
 
   if (authLoading || !user) {
     return null;
@@ -353,6 +410,56 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleClearHostedHistory() {
+    setClearingHosted(true);
+
+    try {
+      await api.clearHostedHistory();
+      setHostedHistory([]);
+      setClearHostedOpen(false);
+      toast.success('История проведённых квизов очищена');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка очистки');
+    } finally {
+      setClearingHosted(false);
+    }
+  }
+
+  async function handleClearParticipatedHistory() {
+    setClearingParticipated(true);
+
+    try {
+      await api.clearParticipatedHistory();
+      setParticipatedHistory([]);
+      setClearParticipatedOpen(false);
+      toast.success('История участия очищена');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка очистки');
+    } finally {
+      setClearingParticipated(false);
+    }
+  }
+
+  async function handleSwitchRole() {
+    if (!user) {
+      return;
+    }
+
+    const newRole = user.role === 'ORGANIZER' ? 'PARTICIPANT' : 'ORGANIZER';
+
+    setSwitchingRole(true);
+
+    try {
+      await api.changeRole(newRole);
+      await refreshUser();
+      toast.success(`Роль изменена на «${newRole === 'ORGANIZER' ? 'Организатор' : 'Участник'}»`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка смены роли');
+    } finally {
+      setSwitchingRole(false);
+    }
+  }
+
   const roleName = user.role === 'ORGANIZER' ? 'Организатор' : 'Участник';
 
   return (
@@ -395,7 +502,20 @@ export default function ProfilePage() {
           <div>
             <p className="font-medium">{user.username}</p>
 
-            <p className="text-sm text-muted-foreground">{roleName}</p>
+            <button
+              type="button"
+              onClick={() => void handleSwitchRole()}
+              disabled={switchingRole}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              {roleName}
+
+              {switchingRole ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+            </button>
 
             {user.status && (
               <p className="mt-1 text-sm italic text-muted-foreground">{user.status}</p>
@@ -614,6 +734,158 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="px-4 pb-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <History className="size-5" />
+            История
+          </h2>
+        </CardHeader>
+
+        <CardContent className="flex flex-col gap-6">
+          {historyLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {user.role === 'ORGANIZER' && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      <Trophy className="size-4" />
+                      Проведённые квизы ({hostedHistory.length})
+                    </h3>
+
+                    {hostedHistory.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto px-2 py-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setClearHostedOpen(true)}
+                      >
+                        <Trash2 className="mr-1 size-3" />
+                        Очистить
+                      </Button>
+                    )}
+                  </div>
+
+                  {hostedHistory.length === 0 ? (
+                    <p className="py-3 text-center text-sm text-muted-foreground">
+                      Вы ещё не проводили квизы
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {hostedHistory.map((s) => (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-4 py-3"
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium">{s.quiz.title}</span>
+
+                            <span className="text-xs text-muted-foreground">
+                              {s.finishedAt
+                                ? new Date(s.finishedAt).toLocaleDateString('ru-RU', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : 'Дата неизвестна'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <Users className="size-3.5" />
+                            {s._count.participants}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {user.role === 'PARTICIPANT' && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      <Medal className="size-4" />
+                      Участие в квизах ({participatedHistory.length})
+                    </h3>
+
+                    {participatedHistory.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto px-2 py-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setClearParticipatedOpen(true)}
+                      >
+                        <Trash2 className="mr-1 size-3" />
+                        Очистить
+                      </Button>
+                    )}
+                  </div>
+
+                  {participatedHistory.length === 0 ? (
+                    <p className="py-3 text-center text-sm text-muted-foreground">
+                      Вы ещё не участвовали в квизах
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {participatedHistory.map((s) => (
+                        <div
+                          key={s.sessionId}
+                          className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-4 py-3"
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium">{s.quiz.title}</span>
+
+                            <span className="text-xs text-muted-foreground">
+                              {s.finishedAt
+                                ? new Date(s.finishedAt).toLocaleDateString('ru-RU', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : 'Дата неизвестна'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                s.rank === 1
+                                  ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400'
+                                  : s.rank === 2
+                                    ? 'bg-gray-300/20 text-gray-600 dark:text-gray-300'
+                                    : s.rank === 3
+                                      ? 'bg-amber-600/15 text-amber-700 dark:text-amber-400'
+                                      : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              #{s.rank}
+                            </span>
+
+                            <span className="text-sm font-medium tabular-nums">
+                              {s.score} {pluralPoints(s.score)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogPopup>
           <AlertDialogTitle>Удалить аккаунт?</AlertDialogTitle>
@@ -635,6 +907,64 @@ export default function ProfilePage() {
             >
               {isDeleting && <Loader2 className="mr-2 size-4 animate-spin" />}
               Удалить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
+
+      <AlertDialog open={clearHostedOpen} onOpenChange={setClearHostedOpen}>
+        <AlertDialogPopup>
+          <AlertDialogTitle>Очистить историю проведённых квизов?</AlertDialogTitle>
+
+          <AlertDialogDescription>
+            Все записи о проведённых сессиях будут удалены. Это действие необратимо.
+          </AlertDialogDescription>
+
+          <AlertDialogFooter>
+            <AlertDialogClose
+              render={<Button variant="outline" size="sm" />}
+              disabled={clearingHosted}
+            >
+              Отмена
+            </AlertDialogClose>
+
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => void handleClearHostedHistory()}
+              disabled={clearingHosted}
+            >
+              {clearingHosted && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Очистить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
+
+      <AlertDialog open={clearParticipatedOpen} onOpenChange={setClearParticipatedOpen}>
+        <AlertDialogPopup>
+          <AlertDialogTitle>Очистить историю участия?</AlertDialogTitle>
+
+          <AlertDialogDescription>
+            Все записи о вашем участии в квизах будут удалены. Это действие необратимо.
+          </AlertDialogDescription>
+
+          <AlertDialogFooter>
+            <AlertDialogClose
+              render={<Button variant="outline" size="sm" />}
+              disabled={clearingParticipated}
+            >
+              Отмена
+            </AlertDialogClose>
+
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => void handleClearParticipatedHistory()}
+              disabled={clearingParticipated}
+            >
+              {clearingParticipated && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Очистить
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>

@@ -107,6 +107,8 @@ model QuizSession {
   roomCode             String            @unique @map("room_code")
   status               QuizSessionStatus @default(LOBBY)
   currentQuestionIndex Int               @default(0) @map("current_question_index")
+  isPublic             Boolean           @default(false) @map("is_public")
+  maxParticipants      Int?              @map("max_participants")
   startedAt            DateTime?         @map("started_at")
   finishedAt           DateTime?         @map("finished_at")
   createdAt            DateTime          @default(now()) @map("created_at")
@@ -140,7 +142,7 @@ model ParticipantAnswer {
   answeredAt    DateTime @default(now()) @map("answered_at")
 
   participant     QuizSessionParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  question        QuizQuestion          @relation(fields: [questionId], references: [id])
+  question        QuizQuestion          @relation(fields: [questionId], references: [id], onDelete: Cascade)
   selectedOptions QuizQuestionOption[]   @relation("SelectedOptions")
 
   @@unique([participantId, questionId])

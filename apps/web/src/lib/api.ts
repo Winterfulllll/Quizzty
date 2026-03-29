@@ -28,6 +28,14 @@ export interface Quiz {
   questions: QuizQuestion[];
 }
 
+export interface ActiveSession {
+  id: string;
+  roomCode: string;
+  status: 'LOBBY' | 'IN_PROGRESS';
+  createdAt: string;
+  _count: { participants: number };
+}
+
 export interface QuizListItem {
   id: string;
   title: string;
@@ -35,6 +43,14 @@ export interface QuizListItem {
   createdAt: string;
   updatedAt: string;
   _count: { questions: number; sessions: number };
+  activeSessions: ActiveSession[];
+}
+
+export interface ActiveParticipantSession {
+  id: string;
+  roomCode: string;
+  status: string;
+  quiz: { title: string };
 }
 
 export interface CreateQuestionData {
@@ -44,6 +60,93 @@ export interface CreateQuestionData {
   timeLimitSeconds: number;
   points: number;
   options: { text: string; isCorrect: boolean }[];
+}
+
+export interface SessionInfo {
+  id: string;
+  roomCode: string;
+  status: 'LOBBY' | 'IN_PROGRESS' | 'SHOWING_RESULTS' | 'FINISHED';
+  currentQuestionIndex: number;
+  isPublic: boolean;
+  maxParticipants: number | null;
+  quiz: {
+    id: string;
+    title: string;
+    description: string | null;
+    createdById: string;
+    questions: { id: string }[];
+  };
+  participants: {
+    id: string;
+    userId: string;
+    score: number;
+    user: { id: string; username: string; avatar: string | null };
+  }[];
+}
+
+export interface LeaderboardEntry {
+  id: string;
+  userId: string;
+  score: number;
+  user: { id: string; username: string; avatar: string | null };
+}
+
+export interface SessionQuestion {
+  id: string;
+  text: string;
+  imageUrl: string | null;
+  type: 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE';
+  timeLimitSeconds: number;
+  points: number;
+  options: { id: string; text: string; order: number }[];
+  index: number;
+  total: number;
+}
+
+export interface HostedSessionHistory {
+  id: string;
+  roomCode: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  quiz: { id: string; title: string };
+  _count: { participants: number };
+}
+
+export interface ParticipatedSessionHistory {
+  sessionId: string;
+  roomCode: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  quiz: { id: string; title: string };
+  participantCount: number;
+  score: number;
+  rank: number;
+}
+
+export interface PublicProfile {
+  id: string;
+  username: string;
+  role: string;
+  avatar: string | null;
+  status: string | null;
+  bio: string | null;
+  createdAt: string;
+  hostedSessions: HostedSessionHistory[];
+  participatedSessions: ParticipatedSessionHistory[];
+}
+
+export interface PublicRoom {
+  id: string;
+  roomCode: string;
+  maxParticipants: number | null;
+  createdAt: string;
+  quiz: {
+    title: string;
+    description: string | null;
+    createdBy: { id: string; username: string; avatar: string | null };
+    _count: { questions: number };
+  };
+  _count: { participants: number };
 }
 
 export interface UpdateQuestionData {
@@ -265,6 +368,17 @@ export const api = {
     });
   },
 
+  getPublicProfile(userId: string) {
+    return request<PublicProfile>(`/users/${userId}/public`);
+  },
+
+  changeRole(role: 'ORGANIZER' | 'PARTICIPANT') {
+    return request<User>('/users/profile/role', {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    });
+  },
+
   deleteAccount() {
     return request<{ message: string }>('/users/profile', {
       method: 'DELETE',
@@ -336,5 +450,54 @@ export const api = {
     return request<QuizQuestion>(`/quizzes/${quizId}/questions/${questionId}/image`, {
       method: 'DELETE',
     });
+  },
+
+  // Sessions
+  createSession(quizId: string) {
+    return request<SessionInfo>(`/sessions/create/${quizId}`, {
+      method: 'POST',
+    });
+  },
+
+  getSessionByCode(code: string) {
+    return request<SessionInfo>(`/sessions/code/${code}`);
+  },
+
+  getLeaderboard(sessionId: string) {
+    return request<LeaderboardEntry[]>(`/sessions/${sessionId}/leaderboard`);
+  },
+
+  deleteSession(sessionId: string) {
+    return request<{ message: string }>(`/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getActiveParticipantSession() {
+    return request<ActiveParticipantSession | null>('/sessions/active/participant');
+  },
+
+  leaveSession(sessionId: string) {
+    return request<{ message: string }>(`/sessions/leave/${sessionId}`, { method: 'POST' });
+  },
+
+  getHostedHistory() {
+    return request<HostedSessionHistory[]>('/sessions/history/hosted');
+  },
+
+  getParticipatedHistory() {
+    return request<ParticipatedSessionHistory[]>('/sessions/history/participated');
+  },
+
+  clearHostedHistory() {
+    return request<{ message: string }>('/sessions/history/hosted', { method: 'DELETE' });
+  },
+
+  clearParticipatedHistory() {
+    return request<{ message: string }>('/sessions/history/participated', { method: 'DELETE' });
+  },
+
+  getPublicRooms() {
+    return request<PublicRoom[]>('/sessions/public');
   },
 };

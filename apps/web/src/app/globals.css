@@ -140,3 +140,18 @@
     @apply font-sans;
   }
 }
+
+@keyframes float-up-fade {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px);
+  }
+}
+
+.animate-float-up-fade {
+  animation: float-up-fade 1.2s ease-out forwards;
+}

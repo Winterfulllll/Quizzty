@@ -16,6 +16,9 @@
     "lint:fix": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "tslint": {
+      "dependsOn": ["^build"]
     }
   }
 }

@@ -48,7 +48,11 @@ export function Header() {
             {isLoading ? null : isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  className={buttonVariants({ variant: 'ghost', size: 'sm', className: 'gap-2' })}
+                  className={buttonVariants({
+                    variant: 'ghost',
+                    size: 'sm',
+                    className: 'h-9 gap-2',
+                  })}
                 >
                   <Avatar className="size-6">
                     <AvatarImage src={user.avatar ?? undefined} />

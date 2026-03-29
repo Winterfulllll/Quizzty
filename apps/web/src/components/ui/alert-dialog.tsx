@@ -18,7 +18,7 @@ function AlertDialogBackdrop({ className, ...props }: DialogPrimitive.Backdrop.P
     <DialogPrimitive.Backdrop
       data-slot="alert-dialog-backdrop"
       className={cn(
-        'fixed inset-0 z-50 bg-black/50 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
+        'fixed inset-0 z-50 bg-black/50 transition-opacity data-open:opacity-100 data-closed:opacity-0',
         className,
       )}
       {...props}
