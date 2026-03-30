@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 export default function JoinPage() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [code, setCode] = useState('');
@@ -22,26 +22,12 @@ export default function JoinPage() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace('/login');
-    }
-  }, [authLoading, isAuthenticated, router]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
     api
       .getActiveParticipantSession()
       .then((s) => setActiveSession(s))
       .catch(() => {})
       .finally(() => setCheckingSession(false));
-  }, [isAuthenticated]);
-
-  if (authLoading || !isAuthenticated) {
-    return null;
-  }
+  }, []);
 
   if (user?.role === 'ORGANIZER') {
     return (

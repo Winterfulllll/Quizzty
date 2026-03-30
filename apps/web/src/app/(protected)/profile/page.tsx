@@ -57,7 +57,7 @@ function pluralPoints(n: number) {
 }
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, isLoading: authLoading, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const router = useRouter();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,16 +138,6 @@ export default function ProfilePage() {
   }, [syncForm]);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace('/login');
-    }
-  }, [authLoading, isAuthenticated, router]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
     setHistoryLoading(true);
 
     Promise.all([api.getHostedHistory(), api.getParticipatedHistory()])
@@ -157,9 +147,9 @@ export default function ProfilePage() {
       })
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
-  }, [isAuthenticated]);
+  }, []);
 
-  if (authLoading || !user) {
+  if (!user) {
     return null;
   }
 

@@ -71,7 +71,7 @@ function fireConfetti(rank: number) {
 
 export default function SessionPage() {
   const { code } = useParams<{ code: string }>();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>('connecting');
@@ -130,7 +130,7 @@ export default function SessionPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading || !isAuthenticated || !user) {
+    if (!user) {
       return;
     }
 
@@ -336,7 +336,7 @@ export default function SessionPage() {
         clearTimeout(timeBonusTimeoutRef.current);
       }
     };
-  }, [authLoading, isAuthenticated, user, code, router, startTimer]);
+  }, [user, code, router, startTimer]);
 
   useEffect(() => {
     if (
@@ -357,13 +357,7 @@ export default function SessionPage() {
     }
   }, [timer, sessionId, user]);
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace('/login');
-    }
-  }, [authLoading, isAuthenticated, router]);
-
-  if (authLoading || !user) {
+  if (!user) {
     return null;
   }
 

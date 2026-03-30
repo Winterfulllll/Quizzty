@@ -346,7 +346,7 @@ function SortableQuestion({
 
 export default function EditQuizPage() {
   const { id } = useParams<{ id: string }>();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -392,16 +392,10 @@ export default function EditQuizPage() {
   }, [id, router]);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace('/login');
-
-      return;
-    }
-
-    if (!authLoading && isAuthenticated) {
+    if (!authLoading) {
       void loadQuiz();
     }
-  }, [authLoading, isAuthenticated, router, loadQuiz]);
+  }, [authLoading, loadQuiz]);
 
   if (authLoading || loading || !quiz) {
     return null;
